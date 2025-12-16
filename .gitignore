@@ -33,3 +33,4 @@ Thumbs.db
 app.py
 START.bat
 static/
+.env*.local

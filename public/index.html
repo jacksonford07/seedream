@@ -602,7 +602,8 @@
 
         async function downloadImage(url, filename) {
             try {
-                const response = await fetch(url);
+                // Try direct download first (works if CORS allows)
+                const response = await fetch(url, { mode: 'cors' });
                 const blob = await response.blob();
                 const blobUrl = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -613,7 +614,9 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(blobUrl);
             } catch (err) {
-                console.error('Download failed:', err);
+                // Fallback: open in new tab for manual save
+                console.log('Direct download failed, opening in new tab:', err);
+                window.open(url, '_blank');
             }
         }
 
@@ -666,27 +669,34 @@
                         });
 
                         const result = await response.json();
+                        console.log('API Response:', result);
 
                         if (result.success && result.images && result.images.length > 0) {
                             const imageUrl = result.images[0].url;
+                            console.log('Image URL:', imageUrl);
                             const poseName = poses[p].name.replace(/\.[^/.]+$/, '');
                             const filename = `seedream_${timestamp}_${p + 1}_${poseName}.png`;
 
-                            await downloadImage(imageUrl, filename);
-
+                            // Show in results grid first
                             const div = document.createElement('div');
                             div.className = 'result-item';
                             div.innerHTML = `
-                                <img src="${imageUrl}" alt="Result">
+                                <img src="${imageUrl}" alt="Result" onerror="console.error('Image load failed:', '${imageUrl}')">
                                 <div class="info">
                                     <div class="name">${poseName}</div>
                                     <button class="btn-download" onclick="downloadImage('${imageUrl}', '${filename}')">Download</button>
                                 </div>
                             `;
                             resultsGrid.appendChild(div);
+
+                            // Then try to auto-download
+                            await downloadImage(imageUrl, filename);
                         } else if (result.error) {
                             console.error('API Error:', result.error);
                             showStatus(`Error: ${result.error}`, 'error');
+                        } else {
+                            console.error('Unexpected response:', result);
+                            showStatus('No images returned', 'error');
                         }
                     } catch (err) {
                         if (err.name === 'AbortError') break;
@@ -736,29 +746,34 @@
                         });
 
                         const result = await response.json();
+                        console.log('Batch API Response:', result);
 
                         if (result.success && result.images && result.images.length > 0) {
                             const imageUrl = result.images[0].url;
+                            console.log('Batch Image URL:', imageUrl);
                             const poseName = poses[p].name.replace(/\.[^/.]+$/, '');
                             const outfitName = outfits[o].name.replace(/\.[^/.]+$/, '');
                             const filename = `seedream_${timestamp}_p${p + 1}_${poseName}_o${o + 1}_${outfitName}.png`;
 
-                            // Auto-download
-                            await downloadImage(imageUrl, filename);
-
-                            // Add to results grid
+                            // Add to results grid first
                             const div = document.createElement('div');
                             div.className = 'result-item';
                             div.innerHTML = `
-                                <img src="${imageUrl}" alt="Result">
+                                <img src="${imageUrl}" alt="Result" onerror="console.error('Image load failed:', '${imageUrl}')">
                                 <div class="info">
                                     <div class="name">P${p + 1} + O${o + 1}</div>
                                     <button class="btn-download" onclick="downloadImage('${imageUrl}', '${filename}')">Download</button>
                                 </div>
                             `;
                             resultsGrid.appendChild(div);
+
+                            // Then auto-download
+                            await downloadImage(imageUrl, filename);
                         } else if (result.error) {
                             console.error('API Error:', result.error);
+                            showStatus(`Error: ${result.error}`, 'error');
+                        } else {
+                            console.error('Unexpected batch response:', result);
                         }
                     } catch (err) {
                         if (err.name === 'AbortError') break;
