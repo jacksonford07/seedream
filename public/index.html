@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SeedDream Batch - Outfit Swap</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #a855f7;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .card h2 {
+            font-size: 16px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card h2 .badge {
+            background: #a855f7;
+            color: white;
+            font-size: 12px;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .card h2 .badge.blue {
+            background: #3b82f6;
+        }
+
+        .card p {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 15px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #333;
+            border-radius: 8px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upload-zone:hover {
+            border-color: #a855f7;
+            background: rgba(168, 85, 247, 0.1);
+        }
+
+        .upload-zone.dragover {
+            border-color: #a855f7;
+            background: rgba(168, 85, 247, 0.2);
+        }
+
+        .upload-zone input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .preview-item {
+            position: relative;
+            aspect-ratio: 1;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #333;
+        }
+
+        .preview-item.pose {
+            border-color: #a855f7;
+        }
+
+        .preview-item.outfit {
+            border-color: #3b82f6;
+        }
+
+        .preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .preview-item .remove {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            width: 20px;
+            height: 20px;
+            background: #ef4444;
+            border: none;
+            border-radius: 50%;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .preview-item:hover .remove {
+            opacity: 1;
+        }
+
+        .preview-item .label {
+            position: absolute;
+            bottom: 4px;
+            left: 4px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .prompt-card {
+            grid-column: 1 / -1;
+        }
+
+        textarea {
+            width: 100%;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #a855f7;
+        }
+
+        .settings {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .setting {
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .setting label {
+            display: block;
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .setting input {
+            width: 100%;
+            background: #0a0a0a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .setting input:focus {
+            outline: none;
+            border-color: #a855f7;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #a855f7;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #9333ea;
+        }
+
+        .btn-primary:disabled {
+            background: #4a4a4a;
+            cursor: not-allowed;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .progress-card {
+            grid-column: 1 / -1;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            background: linear-gradient(90deg, #a855f7, #3b82f6);
+            transition: width 0.3s;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .result-item {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .result-item img {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+        }
+
+        .result-item .info {
+            padding: 10px;
+        }
+
+        .result-item .info .name {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+            word-break: break-all;
+        }
+
+        .result-item .btn-download {
+            width: 100%;
+            padding: 8px;
+            background: #333;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .result-item .btn-download:hover {
+            background: #444;
+        }
+
+        .status {
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .status.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+        }
+
+        .status.success {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid #22c55e;
+            color: #22c55e;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #fff;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SeedDream Batch</h1>
+        <p class="subtitle">Apply multiple outfits to multiple poses - auto-downloads results</p>
+
+        <div id="status" class="status hidden"></div>
+
+        <div class="grid">
+            <!-- Pose Images -->
+            <div class="card">
+                <h2>
+                    Pose Images
+                    <span class="badge" id="pose-count">0</span>
+                </h2>
+                <p>The base images with poses to keep (Figure 1)</p>
+                <div class="upload-zone" id="pose-zone">
+                    <input type="file" id="pose-input" accept="image/*" multiple>
+                    <div class="upload-icon">📷</div>
+                    <div>Click or drag pose images here</div>
+                </div>
+                <div class="preview-grid" id="pose-preview"></div>
+            </div>
+
+            <!-- Outfit Images -->
+            <div class="card">
+                <h2>
+                    Outfit Images
+                    <span class="badge blue" id="outfit-count">0</span>
+                </h2>
+                <p>Outfits to apply to each pose (Figure 2)</p>
+                <div class="upload-zone" id="outfit-zone">
+                    <input type="file" id="outfit-input" accept="image/*" multiple>
+                    <div class="upload-icon">👕</div>
+                    <div>Click or drag outfit images here</div>
+                </div>
+                <div class="preview-grid" id="outfit-preview"></div>
+            </div>
+
+            <!-- Prompt -->
+            <div class="card prompt-card">
+                <h2>Prompt (Optional)</h2>
+                <p>Leave empty for default outfit swap prompt</p>
+                <textarea id="prompt" placeholder="Apply the outfit/clothing from Figure 2 onto the person in Figure 1. Keep the exact pose, face, and background from Figure 1. Only change the clothing to match Figure 2."></textarea>
+                <div class="settings">
+                    <div class="setting">
+                        <label>Seed (optional)</label>
+                        <input type="number" id="seed" placeholder="Random">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate Button -->
+        <button class="btn btn-primary" id="generate-btn" disabled>
+            <span id="btn-text">Select poses and outfits to start</span>
+        </button>
+
+        <!-- Progress -->
+        <div class="card progress-card hidden" id="progress-card">
+            <h2>Processing...</h2>
+            <div class="progress-bar">
+                <div class="fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+            <p class="progress-text" id="progress-text">Starting...</p>
+            <button class="btn btn-danger" id="cancel-btn" style="margin-top: 15px;">Cancel</button>
+        </div>
+
+        <!-- Results -->
+        <div class="card hidden" id="results-card">
+            <h2>Results</h2>
+            <div class="results-grid" id="results-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let poses = [];
+        let outfits = [];
+        let poseData = []; // base64 data
+        let outfitData = []; // base64 data
+        let isProcessing = false;
+        let abortController = null;
+
+        // Elements
+        const poseZone = document.getElementById('pose-zone');
+        const poseInput = document.getElementById('pose-input');
+        const posePreview = document.getElementById('pose-preview');
+        const poseCount = document.getElementById('pose-count');
+
+        const outfitZone = document.getElementById('outfit-zone');
+        const outfitInput = document.getElementById('outfit-input');
+        const outfitPreview = document.getElementById('outfit-preview');
+        const outfitCount = document.getElementById('outfit-count');
+
+        const promptInput = document.getElementById('prompt');
+        const seedInput = document.getElementById('seed');
+        const generateBtn = document.getElementById('generate-btn');
+        const btnText = document.getElementById('btn-text');
+
+        const progressCard = document.getElementById('progress-card');
+        const progressFill = document.getElementById('progress-fill');
+        const progressText = document.getElementById('progress-text');
+        const cancelBtn = document.getElementById('cancel-btn');
+
+        const resultsCard = document.getElementById('results-card');
+        const resultsGrid = document.getElementById('results-grid');
+        const statusEl = document.getElementById('status');
+
+        // Convert file to base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Upload handlers
+        function setupUploadZone(zone, input, type) {
+            zone.addEventListener('click', () => input.click());
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+            zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                handleFiles(e.dataTransfer.files, type);
+            });
+            input.addEventListener('change', (e) => handleFiles(e.target.files, type));
+        }
+
+        async function handleFiles(fileList, type) {
+            const filesArr = type === 'pose' ? poses : outfits;
+            const dataArr = type === 'pose' ? poseData : outfitData;
+
+            for (const file of fileList) {
+                if (file.type.startsWith('image/')) {
+                    filesArr.push(file);
+                    const base64 = await fileToBase64(file);
+                    dataArr.push({ name: file.name, data: base64 });
+                }
+            }
+            updatePreviews();
+            updateButton();
+        }
+
+        function updatePreviews() {
+            // Poses
+            posePreview.innerHTML = '';
+            poses.forEach((file, idx) => {
+                const div = createPreviewItem(file, idx, 'pose');
+                posePreview.appendChild(div);
+            });
+            poseCount.textContent = poses.length;
+
+            // Outfits
+            outfitPreview.innerHTML = '';
+            outfits.forEach((file, idx) => {
+                const div = createPreviewItem(file, idx, 'outfit');
+                outfitPreview.appendChild(div);
+            });
+            outfitCount.textContent = outfits.length;
+        }
+
+        function createPreviewItem(file, idx, type) {
+            const div = document.createElement('div');
+            div.className = `preview-item ${type}`;
+
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            div.appendChild(img);
+
+            const label = document.createElement('span');
+            label.className = 'label';
+            label.textContent = type === 'pose' ? `P${idx + 1}` : `O${idx + 1}`;
+            div.appendChild(label);
+
+            const remove = document.createElement('button');
+            remove.className = 'remove';
+            remove.textContent = '×';
+            remove.onclick = (e) => {
+                e.stopPropagation();
+                if (type === 'pose') {
+                    poses.splice(idx, 1);
+                    poseData.splice(idx, 1);
+                } else {
+                    outfits.splice(idx, 1);
+                    outfitData.splice(idx, 1);
+                }
+                updatePreviews();
+                updateButton();
+            };
+            div.appendChild(remove);
+
+            return div;
+        }
+
+        function updateButton() {
+            const total = poses.length * outfits.length;
+            if (poses.length === 0 && outfits.length === 0) {
+                generateBtn.disabled = true;
+                btnText.textContent = 'Upload images to start';
+            } else if (poses.length === 0) {
+                generateBtn.disabled = true;
+                btnText.textContent = 'Add at least 1 pose image';
+            } else if (outfits.length === 0) {
+                // Single edit mode - just poses
+                generateBtn.disabled = false;
+                btnText.textContent = `Run Single Edit (${poses.length} image${poses.length > 1 ? 's' : ''})`;
+            } else {
+                // Batch mode - poses + outfits
+                generateBtn.disabled = false;
+                btnText.textContent = `Run Batch (${poses.length} pose${poses.length > 1 ? 's' : ''} × ${outfits.length} outfit${outfits.length > 1 ? 's' : ''} = ${total})`;
+            }
+        }
+
+        function showStatus(message, type) {
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+            statusEl.classList.remove('hidden');
+            setTimeout(() => statusEl.classList.add('hidden'), 5000);
+        }
+
+        async function downloadImage(url, filename) {
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = blobUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+            } catch (err) {
+                console.error('Download failed:', err);
+            }
+        }
+
+        async function runBatch() {
+            if (isProcessing) return;
+            isProcessing = true;
+            abortController = new AbortController();
+
+            generateBtn.classList.add('hidden');
+            progressCard.classList.remove('hidden');
+            resultsCard.classList.remove('hidden');
+            resultsGrid.innerHTML = '';
+
+            const timestamp = Date.now();
+            const prompt = promptInput.value.trim();
+            const seed = seedInput.value.trim();
+
+            // Single edit mode (no outfits)
+            if (outfits.length === 0) {
+                const total = poses.length;
+                let completed = 0;
+
+                if (!prompt) {
+                    showStatus('Please enter a prompt for single edit mode', 'error');
+                    progressCard.classList.add('hidden');
+                    generateBtn.classList.remove('hidden');
+                    isProcessing = false;
+                    return;
+                }
+
+                for (let p = 0; p < poses.length; p++) {
+                    if (abortController.signal.aborted) break;
+
+                    progressText.textContent = `Processing: Image ${p + 1}/${poses.length}`;
+                    progressFill.style.width = `${(completed / total) * 100}%`;
+
+                    try {
+                        const requestBody = {
+                            prompt: prompt,
+                            images: [poseData[p].data],
+                            num_images: 1
+                        };
+                        if (seed) requestBody.seed = parseInt(seed);
+
+                        const response = await fetch('/api/edit', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestBody),
+                            signal: abortController.signal
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success && result.images && result.images.length > 0) {
+                            const imageUrl = result.images[0].url;
+                            const poseName = poses[p].name.replace(/\.[^/.]+$/, '');
+                            const filename = `seedream_${timestamp}_${p + 1}_${poseName}.png`;
+
+                            await downloadImage(imageUrl, filename);
+
+                            const div = document.createElement('div');
+                            div.className = 'result-item';
+                            div.innerHTML = `
+                                <img src="${imageUrl}" alt="Result">
+                                <div class="info">
+                                    <div class="name">${poseName}</div>
+                                    <button class="btn-download" onclick="downloadImage('${imageUrl}', '${filename}')">Download</button>
+                                </div>
+                            `;
+                            resultsGrid.appendChild(div);
+                        } else if (result.error) {
+                            console.error('API Error:', result.error);
+                            showStatus(`Error: ${result.error}`, 'error');
+                        }
+                    } catch (err) {
+                        if (err.name === 'AbortError') break;
+                        console.error(`Failed: Image ${p + 1}:`, err);
+                    }
+
+                    completed++;
+                }
+
+                progressFill.style.width = '100%';
+                progressText.textContent = `Completed: ${completed}/${total}`;
+
+                setTimeout(() => {
+                    progressCard.classList.add('hidden');
+                    generateBtn.classList.remove('hidden');
+                    isProcessing = false;
+                    showStatus(`Done! ${completed} images downloaded.`, 'success');
+                }, 1000);
+                return;
+            }
+
+            // Batch mode (poses + outfits) - process one at a time via /api/edit
+            const total = poses.length * outfits.length;
+            let completed = 0;
+            const batchPrompt = prompt || 'Apply the outfit/clothing from Figure 2 onto the person in Figure 1. Keep the exact pose, face, and background from Figure 1. Only change the clothing to match Figure 2.';
+
+            for (let p = 0; p < poses.length; p++) {
+                for (let o = 0; o < outfits.length; o++) {
+                    if (abortController.signal.aborted) break;
+
+                    progressText.textContent = `Processing: Pose ${p + 1}/${poses.length} + Outfit ${o + 1}/${outfits.length}`;
+                    progressFill.style.width = `${(completed / total) * 100}%`;
+
+                    try {
+                        const requestBody = {
+                            prompt: batchPrompt,
+                            images: [poseData[p].data, outfitData[o].data],
+                            num_images: 1
+                        };
+                        if (seed) requestBody.seed = parseInt(seed);
+
+                        const response = await fetch('/api/edit', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestBody),
+                            signal: abortController.signal
+                        });
+
+                        const result = await response.json();
+
+                        if (result.success && result.images && result.images.length > 0) {
+                            const imageUrl = result.images[0].url;
+                            const poseName = poses[p].name.replace(/\.[^/.]+$/, '');
+                            const outfitName = outfits[o].name.replace(/\.[^/.]+$/, '');
+                            const filename = `seedream_${timestamp}_p${p + 1}_${poseName}_o${o + 1}_${outfitName}.png`;
+
+                            // Auto-download
+                            await downloadImage(imageUrl, filename);
+
+                            // Add to results grid
+                            const div = document.createElement('div');
+                            div.className = 'result-item';
+                            div.innerHTML = `
+                                <img src="${imageUrl}" alt="Result">
+                                <div class="info">
+                                    <div class="name">P${p + 1} + O${o + 1}</div>
+                                    <button class="btn-download" onclick="downloadImage('${imageUrl}', '${filename}')">Download</button>
+                                </div>
+                            `;
+                            resultsGrid.appendChild(div);
+                        } else if (result.error) {
+                            console.error('API Error:', result.error);
+                        }
+                    } catch (err) {
+                        if (err.name === 'AbortError') break;
+                        console.error(`Failed: Pose ${p + 1} + Outfit ${o + 1}:`, err);
+                    }
+
+                    completed++;
+                }
+                if (abortController.signal.aborted) break;
+            }
+
+            progressFill.style.width = '100%';
+            progressText.textContent = `Completed: ${completed}/${total}`;
+
+            setTimeout(() => {
+                progressCard.classList.add('hidden');
+                generateBtn.classList.remove('hidden');
+                isProcessing = false;
+                showStatus(`Batch complete! ${completed} images downloaded.`, 'success');
+            }, 1000);
+        }
+
+        // Cancel
+        cancelBtn.addEventListener('click', () => {
+            if (abortController) {
+                abortController.abort();
+                progressCard.classList.add('hidden');
+                generateBtn.classList.remove('hidden');
+                isProcessing = false;
+                showStatus('Batch cancelled', 'error');
+            }
+        });
+
+        // Generate
+        generateBtn.addEventListener('click', runBatch);
+
+        // Initialize
+        setupUploadZone(poseZone, poseInput, 'pose');
+        setupUploadZone(outfitZone, outfitInput, 'outfit');
+
+        // Check API health
+        fetch('/api/health')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.fal_configured) {
+                    showStatus('Warning: FAL_API_KEY not configured. Set it in Vercel environment variables.', 'error');
+                }
+            })
+            .catch(() => showStatus('Cannot connect to API', 'error'));
+    </script>
+</body>
+</html>

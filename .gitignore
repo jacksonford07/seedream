@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Vercel
+.vercel
+
+# Uploads/Outputs (local only)
+uploads/
+outputs/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Old files from original zip (not needed for Vercel)
+app.py
+START.bat
+static/
