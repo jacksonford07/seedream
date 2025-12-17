@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SeedDream Batch - Outfit Swap</title>
+    <title>SeedDream Studio</title>
     <style>
         * {
             margin: 0;
@@ -33,7 +33,46 @@
         .subtitle {
             text-align: center;
             color: #888;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #888;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            border-color: #a855f7;
+            color: #fff;
+        }
+
+        .tab.active {
+            background: #a855f7;
+            border-color: #a855f7;
+            color: #fff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         .grid {
@@ -74,6 +113,10 @@
 
         .card h2 .badge.blue {
             background: #3b82f6;
+        }
+
+        .card h2 .badge.green {
+            background: #22c55e;
         }
 
         .card p {
@@ -131,6 +174,10 @@
 
         .preview-item.outfit {
             border-color: #3b82f6;
+        }
+
+        .preview-item.video {
+            border-color: #22c55e;
         }
 
         .preview-item img {
@@ -203,7 +250,7 @@
 
         .setting {
             flex: 1;
-            min-width: 150px;
+            min-width: 120px;
         }
 
         .setting label {
@@ -213,7 +260,7 @@
             margin-bottom: 5px;
         }
 
-        .setting input {
+        .setting input, .setting select {
             width: 100%;
             background: #0a0a0a;
             border: 1px solid #333;
@@ -223,7 +270,7 @@
             font-size: 14px;
         }
 
-        .setting input:focus {
+        .setting input:focus, .setting select:focus {
             outline: none;
             border-color: #a855f7;
         }
@@ -257,6 +304,20 @@
             cursor: not-allowed;
         }
 
+        .btn-green {
+            background: #22c55e;
+            color: white;
+        }
+
+        .btn-green:hover:not(:disabled) {
+            background: #16a34a;
+        }
+
+        .btn-green:disabled {
+            background: #4a4a4a;
+            cursor: not-allowed;
+        }
+
         .btn-danger {
             background: #ef4444;
             color: white;
@@ -284,6 +345,10 @@
             transition: width 0.3s;
         }
 
+        .progress-bar .fill.green {
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+        }
+
         .progress-text {
             text-align: center;
             color: #888;
@@ -304,10 +369,14 @@
             overflow: hidden;
         }
 
-        .result-item img {
+        .result-item img, .result-item video {
             width: 100%;
             aspect-ratio: 1;
             object-fit: cover;
+        }
+
+        .result-item video {
+            aspect-ratio: 16/9;
         }
 
         .result-item .info {
@@ -372,92 +441,202 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        .single-upload {
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .video-preview {
+            max-width: 200px;
+            margin: 15px auto 0;
+        }
+
+        .video-preview img {
+            width: 100%;
+            border-radius: 8px;
+            border: 2px solid #22c55e;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>SeedDream Batch</h1>
-        <p class="subtitle">Apply multiple outfits to multiple poses - auto-downloads results</p>
+        <h1>SeedDream Studio</h1>
+        <p class="subtitle">Image editing & video generation powered by ByteDance AI</p>
 
         <div id="status" class="status hidden"></div>
 
-        <div class="grid">
-            <!-- Pose Images -->
-            <div class="card">
-                <h2>
-                    Pose Images
-                    <span class="badge" id="pose-count">0</span>
-                </h2>
-                <p>The base images with poses to keep (Figure 1)</p>
-                <div class="upload-zone" id="pose-zone">
-                    <input type="file" id="pose-input" accept="image/*" multiple>
-                    <div class="upload-icon">📷</div>
-                    <div>Click or drag pose images here</div>
-                </div>
-                <div class="preview-grid" id="pose-preview"></div>
-            </div>
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" data-tab="image">Image Edit</div>
+            <div class="tab" data-tab="video">Image to Video</div>
+        </div>
 
-            <!-- Outfit Images -->
-            <div class="card">
-                <h2>
-                    Outfit Images
-                    <span class="badge blue" id="outfit-count">0</span>
-                </h2>
-                <p>Outfits to apply to each pose (Figure 2)</p>
-                <div class="upload-zone" id="outfit-zone">
-                    <input type="file" id="outfit-input" accept="image/*" multiple>
-                    <div class="upload-icon">👕</div>
-                    <div>Click or drag outfit images here</div>
+        <!-- IMAGE EDIT TAB -->
+        <div id="image-tab" class="tab-content active">
+            <div class="grid">
+                <!-- Pose Images -->
+                <div class="card">
+                    <h2>
+                        Pose Images
+                        <span class="badge" id="pose-count">0</span>
+                    </h2>
+                    <p>The base images with poses to keep (Figure 1)</p>
+                    <div class="upload-zone" id="pose-zone">
+                        <input type="file" id="pose-input" accept="image/*" multiple>
+                        <div class="upload-icon">📷</div>
+                        <div>Click or drag pose images here</div>
+                    </div>
+                    <div class="preview-grid" id="pose-preview"></div>
                 </div>
-                <div class="preview-grid" id="outfit-preview"></div>
-            </div>
 
-            <!-- Prompt -->
-            <div class="card prompt-card">
-                <h2>Prompt (Optional)</h2>
-                <p>Leave empty for default outfit swap prompt</p>
-                <textarea id="prompt" placeholder="Apply the outfit/clothing from Figure 2 onto the person in Figure 1. Keep the exact pose, face, and background from Figure 1. Only change the clothing to match Figure 2."></textarea>
-                <div class="settings">
-                    <div class="setting">
-                        <label>Seed (optional)</label>
-                        <input type="number" id="seed" placeholder="Random">
+                <!-- Outfit Images -->
+                <div class="card">
+                    <h2>
+                        Outfit Images
+                        <span class="badge blue" id="outfit-count">0</span>
+                    </h2>
+                    <p>Outfits to apply to each pose (Figure 2)</p>
+                    <div class="upload-zone" id="outfit-zone">
+                        <input type="file" id="outfit-input" accept="image/*" multiple>
+                        <div class="upload-icon">👕</div>
+                        <div>Click or drag outfit images here</div>
+                    </div>
+                    <div class="preview-grid" id="outfit-preview"></div>
+                </div>
+
+                <!-- Prompt -->
+                <div class="card prompt-card">
+                    <h2>Prompt (Optional)</h2>
+                    <p>Leave empty for default outfit swap prompt</p>
+                    <textarea id="prompt" placeholder="Apply the outfit/clothing from Figure 2 onto the person in Figure 1. Keep the exact pose, face, and background from Figure 1. Only change the clothing to match Figure 2."></textarea>
+                    <div class="settings">
+                        <div class="setting">
+                            <label>Seed (optional)</label>
+                            <input type="number" id="seed" placeholder="Random">
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Generate Button -->
-        <button class="btn btn-primary" id="generate-btn" disabled>
-            <span id="btn-text">Select poses and outfits to start</span>
-        </button>
+            <!-- Generate Button -->
+            <button class="btn btn-primary" id="generate-btn" disabled>
+                <span id="btn-text">Select poses and outfits to start</span>
+            </button>
 
-        <!-- Progress -->
-        <div class="card progress-card hidden" id="progress-card">
-            <h2>Processing...</h2>
-            <div class="progress-bar">
-                <div class="fill" id="progress-fill" style="width: 0%"></div>
+            <!-- Progress -->
+            <div class="card progress-card hidden" id="progress-card">
+                <h2>Processing...</h2>
+                <div class="progress-bar">
+                    <div class="fill" id="progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="progress-text" id="progress-text">Starting...</p>
+                <button class="btn btn-danger" id="cancel-btn" style="margin-top: 15px;">Cancel</button>
             </div>
-            <p class="progress-text" id="progress-text">Starting...</p>
-            <button class="btn btn-danger" id="cancel-btn" style="margin-top: 15px;">Cancel</button>
+
+            <!-- Results -->
+            <div class="card hidden" id="results-card">
+                <h2>Results</h2>
+                <div class="results-grid" id="results-grid"></div>
+            </div>
         </div>
 
-        <!-- Results -->
-        <div class="card hidden" id="results-card">
-            <h2>Results</h2>
-            <div class="results-grid" id="results-grid"></div>
+        <!-- VIDEO TAB -->
+        <div id="video-tab" class="tab-content">
+            <div class="grid">
+                <!-- Video Source Image -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h2>
+                        Source Image
+                        <span class="badge green" id="video-image-count">0</span>
+                    </h2>
+                    <p>Upload an image to animate into a video</p>
+                    <div class="upload-zone single-upload" id="video-zone">
+                        <input type="file" id="video-input" accept="image/*">
+                        <div class="upload-icon">🎬</div>
+                        <div>Click or drag an image here</div>
+                    </div>
+                    <div class="video-preview hidden" id="video-preview"></div>
+                </div>
+
+                <!-- Video Prompt -->
+                <div class="card prompt-card">
+                    <h2>Motion Prompt</h2>
+                    <p>Describe how the image should move/animate</p>
+                    <textarea id="video-prompt" placeholder="e.g., shake her hips side to side while holding the camera"></textarea>
+                    <div class="settings">
+                        <div class="setting">
+                            <label>Duration</label>
+                            <select id="video-duration">
+                                <option value="5" selected>5 seconds</option>
+                                <option value="10">10 seconds</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label>Resolution</label>
+                            <select id="video-resolution">
+                                <option value="720p">720p</option>
+                                <option value="1080p" selected>1080p</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label>Aspect Ratio</label>
+                            <select id="video-aspect">
+                                <option value="auto" selected>Auto</option>
+                                <option value="16:9">16:9</option>
+                                <option value="9:16">9:16</option>
+                                <option value="1:1">1:1</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label>Seed (optional)</label>
+                            <input type="number" id="video-seed" placeholder="Random">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Video Button -->
+            <button class="btn btn-green" id="video-generate-btn" disabled>
+                <span id="video-btn-text">Upload an image to start</span>
+            </button>
+
+            <!-- Video Progress -->
+            <div class="card progress-card hidden" id="video-progress-card">
+                <h2>Generating Video...</h2>
+                <div class="progress-bar">
+                    <div class="fill green" id="video-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="progress-text" id="video-progress-text">Starting... (this may take 1-2 minutes)</p>
+            </div>
+
+            <!-- Video Results -->
+            <div class="card hidden" id="video-results-card">
+                <h2>Generated Video</h2>
+                <div class="results-grid" id="video-results-grid"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        // State
+        // ============ TABS ============
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+            });
+        });
+
+        // ============ IMAGE EDIT ============
         let poses = [];
         let outfits = [];
-        let poseData = []; // base64 data
-        let outfitData = []; // base64 data
+        let poseData = [];
+        let outfitData = [];
         let isProcessing = false;
         let abortController = null;
 
-        // Elements
         const poseZone = document.getElementById('pose-zone');
         const poseInput = document.getElementById('pose-input');
         const posePreview = document.getElementById('pose-preview');
@@ -482,7 +661,6 @@
         const resultsGrid = document.getElementById('results-grid');
         const statusEl = document.getElementById('status');
 
-        // Convert file to base64
         function fileToBase64(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -492,7 +670,6 @@
             });
         }
 
-        // Upload handlers
         function setupUploadZone(zone, input, type) {
             zone.addEventListener('click', () => input.click());
             zone.addEventListener('dragover', (e) => {
@@ -524,7 +701,6 @@
         }
 
         function updatePreviews() {
-            // Poses
             posePreview.innerHTML = '';
             poses.forEach((file, idx) => {
                 const div = createPreviewItem(file, idx, 'pose');
@@ -532,7 +708,6 @@
             });
             poseCount.textContent = poses.length;
 
-            // Outfits
             outfitPreview.innerHTML = '';
             outfits.forEach((file, idx) => {
                 const div = createPreviewItem(file, idx, 'outfit');
@@ -583,13 +758,11 @@
                 generateBtn.disabled = true;
                 btnText.textContent = 'Add at least 1 pose image';
             } else if (outfits.length === 0) {
-                // Single edit mode - just poses
                 generateBtn.disabled = false;
                 btnText.textContent = `Run Single Edit (${poses.length} image${poses.length > 1 ? 's' : ''})`;
             } else {
-                // Batch mode - poses + outfits
                 generateBtn.disabled = false;
-                btnText.textContent = `Run Batch (${poses.length} pose${poses.length > 1 ? 's' : ''} × ${outfits.length} outfit${outfits.length > 1 ? 's' : ''} = ${total})`;
+                btnText.textContent = `Run Batch (${poses.length} × ${outfits.length} = ${total})`;
             }
         }
 
@@ -600,9 +773,8 @@
             setTimeout(() => statusEl.classList.add('hidden'), 5000);
         }
 
-        async function downloadImage(url, filename) {
+        async function downloadFile(url, filename) {
             try {
-                // Try direct download first (works if CORS allows)
                 const response = await fetch(url, { mode: 'cors' });
                 const blob = await response.blob();
                 const blobUrl = URL.createObjectURL(blob);
@@ -614,7 +786,6 @@
                 document.body.removeChild(a);
                 URL.revokeObjectURL(blobUrl);
             } catch (err) {
-                // Fallback: open in new tab for manual save
                 console.log('Direct download failed, opening in new tab:', err);
                 window.open(url, '_blank');
             }
@@ -634,7 +805,6 @@
             const prompt = promptInput.value.trim();
             const seed = seedInput.value.trim();
 
-            // Single edit mode (no outfits)
             if (outfits.length === 0) {
                 const total = poses.length;
                 let completed = 0;
@@ -669,34 +839,25 @@
                         });
 
                         const result = await response.json();
-                        console.log('API Response:', result);
 
                         if (result.success && result.images && result.images.length > 0) {
                             const imageUrl = result.images[0].url;
-                            console.log('Image URL:', imageUrl);
                             const poseName = poses[p].name.replace(/\.[^/.]+$/, '');
                             const filename = `seedream_${timestamp}_${p + 1}_${poseName}.png`;
 
-                            // Show in results grid first
                             const div = document.createElement('div');
                             div.className = 'result-item';
                             div.innerHTML = `
-                                <img src="${imageUrl}" alt="Result" onerror="console.error('Image load failed:', '${imageUrl}')">
+                                <img src="${imageUrl}" alt="Result">
                                 <div class="info">
                                     <div class="name">${poseName}</div>
-                                    <button class="btn-download" onclick="downloadImage('${imageUrl}', '${filename}')">Download</button>
+                                    <button class="btn-download" onclick="downloadFile('${imageUrl}', '${filename}')">Download</button>
                                 </div>
                             `;
                             resultsGrid.appendChild(div);
-
-                            // Then try to auto-download
-                            await downloadImage(imageUrl, filename);
+                            await downloadFile(imageUrl, filename);
                         } else if (result.error) {
-                            console.error('API Error:', result.error);
                             showStatus(`Error: ${result.error}`, 'error');
-                        } else {
-                            console.error('Unexpected response:', result);
-                            showStatus('No images returned', 'error');
                         }
                     } catch (err) {
                         if (err.name === 'AbortError') break;
@@ -713,12 +874,11 @@
                     progressCard.classList.add('hidden');
                     generateBtn.classList.remove('hidden');
                     isProcessing = false;
-                    showStatus(`Done! ${completed} images downloaded.`, 'success');
+                    showStatus(`Done! ${completed} images processed.`, 'success');
                 }, 1000);
                 return;
             }
 
-            // Batch mode (poses + outfits) - process one at a time via /api/edit
             const total = poses.length * outfits.length;
             let completed = 0;
             const batchPrompt = prompt || 'Apply the outfit/clothing from Figure 2 onto the person in Figure 1. Keep the exact pose, face, and background from Figure 1. Only change the clothing to match Figure 2.';
@@ -746,34 +906,26 @@
                         });
 
                         const result = await response.json();
-                        console.log('Batch API Response:', result);
 
                         if (result.success && result.images && result.images.length > 0) {
                             const imageUrl = result.images[0].url;
-                            console.log('Batch Image URL:', imageUrl);
                             const poseName = poses[p].name.replace(/\.[^/.]+$/, '');
                             const outfitName = outfits[o].name.replace(/\.[^/.]+$/, '');
                             const filename = `seedream_${timestamp}_p${p + 1}_${poseName}_o${o + 1}_${outfitName}.png`;
 
-                            // Add to results grid first
                             const div = document.createElement('div');
                             div.className = 'result-item';
                             div.innerHTML = `
-                                <img src="${imageUrl}" alt="Result" onerror="console.error('Image load failed:', '${imageUrl}')">
+                                <img src="${imageUrl}" alt="Result">
                                 <div class="info">
                                     <div class="name">P${p + 1} + O${o + 1}</div>
-                                    <button class="btn-download" onclick="downloadImage('${imageUrl}', '${filename}')">Download</button>
+                                    <button class="btn-download" onclick="downloadFile('${imageUrl}', '${filename}')">Download</button>
                                 </div>
                             `;
                             resultsGrid.appendChild(div);
-
-                            // Then auto-download
-                            await downloadImage(imageUrl, filename);
+                            await downloadFile(imageUrl, filename);
                         } else if (result.error) {
-                            console.error('API Error:', result.error);
                             showStatus(`Error: ${result.error}`, 'error');
-                        } else {
-                            console.error('Unexpected batch response:', result);
                         }
                     } catch (err) {
                         if (err.name === 'AbortError') break;
@@ -792,34 +944,178 @@
                 progressCard.classList.add('hidden');
                 generateBtn.classList.remove('hidden');
                 isProcessing = false;
-                showStatus(`Batch complete! ${completed} images downloaded.`, 'success');
+                showStatus(`Batch complete! ${completed} images processed.`, 'success');
             }, 1000);
         }
 
-        // Cancel
         cancelBtn.addEventListener('click', () => {
             if (abortController) {
                 abortController.abort();
                 progressCard.classList.add('hidden');
                 generateBtn.classList.remove('hidden');
                 isProcessing = false;
-                showStatus('Batch cancelled', 'error');
+                showStatus('Cancelled', 'error');
             }
         });
 
-        // Generate
         generateBtn.addEventListener('click', runBatch);
-
-        // Initialize
         setupUploadZone(poseZone, poseInput, 'pose');
         setupUploadZone(outfitZone, outfitInput, 'outfit');
+
+        // ============ VIDEO GENERATION ============
+        let videoImage = null;
+        let videoImageData = null;
+        let isVideoProcessing = false;
+
+        const videoZone = document.getElementById('video-zone');
+        const videoInput = document.getElementById('video-input');
+        const videoPreview = document.getElementById('video-preview');
+        const videoImageCount = document.getElementById('video-image-count');
+        const videoPromptInput = document.getElementById('video-prompt');
+        const videoDuration = document.getElementById('video-duration');
+        const videoResolution = document.getElementById('video-resolution');
+        const videoAspect = document.getElementById('video-aspect');
+        const videoSeed = document.getElementById('video-seed');
+        const videoGenerateBtn = document.getElementById('video-generate-btn');
+        const videoBtnText = document.getElementById('video-btn-text');
+        const videoProgressCard = document.getElementById('video-progress-card');
+        const videoProgressFill = document.getElementById('video-progress-fill');
+        const videoProgressText = document.getElementById('video-progress-text');
+        const videoResultsCard = document.getElementById('video-results-card');
+        const videoResultsGrid = document.getElementById('video-results-grid');
+
+        videoZone.addEventListener('click', () => videoInput.click());
+        videoZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            videoZone.classList.add('dragover');
+        });
+        videoZone.addEventListener('dragleave', () => videoZone.classList.remove('dragover'));
+        videoZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            videoZone.classList.remove('dragover');
+            handleVideoFile(e.dataTransfer.files[0]);
+        });
+        videoInput.addEventListener('change', (e) => handleVideoFile(e.target.files[0]));
+
+        async function handleVideoFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+
+            videoImage = file;
+            videoImageData = await fileToBase64(file);
+
+            videoPreview.innerHTML = `<img src="${URL.createObjectURL(file)}" alt="Preview">`;
+            videoPreview.classList.remove('hidden');
+            videoImageCount.textContent = '1';
+            updateVideoButton();
+        }
+
+        function updateVideoButton() {
+            if (!videoImage) {
+                videoGenerateBtn.disabled = true;
+                videoBtnText.textContent = 'Upload an image to start';
+            } else {
+                videoGenerateBtn.disabled = false;
+                videoBtnText.textContent = 'Generate Video';
+            }
+        }
+
+        async function generateVideo() {
+            if (isVideoProcessing || !videoImage) return;
+
+            const prompt = videoPromptInput.value.trim();
+            if (!prompt) {
+                showStatus('Please enter a motion prompt', 'error');
+                return;
+            }
+
+            isVideoProcessing = true;
+            videoGenerateBtn.classList.add('hidden');
+            videoProgressCard.classList.remove('hidden');
+            videoResultsCard.classList.remove('hidden');
+            videoResultsGrid.innerHTML = '';
+
+            // Animate progress bar
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 1;
+                if (progress <= 95) {
+                    videoProgressFill.style.width = `${progress}%`;
+                    videoProgressText.textContent = `Generating video... ${progress}% (this may take 1-2 minutes)`;
+                }
+            }, 1200);
+
+            try {
+                const requestBody = {
+                    prompt: prompt,
+                    image: videoImageData,
+                    duration: videoDuration.value,
+                    resolution: videoResolution.value,
+                    aspect_ratio: videoAspect.value
+                };
+
+                const seed = videoSeed.value.trim();
+                if (seed) requestBody.seed = parseInt(seed);
+
+                const response = await fetch('/api/video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const result = await response.json();
+                clearInterval(progressInterval);
+
+                console.log('Video API Response:', result);
+
+                if (result.success && result.video && result.video.url) {
+                    const videoUrl = result.video.url;
+                    const timestamp = Date.now();
+                    const filename = `seedance_${timestamp}.mp4`;
+
+                    videoProgressFill.style.width = '100%';
+                    videoProgressText.textContent = 'Video generated!';
+
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerHTML = `
+                        <video src="${videoUrl}" controls autoplay loop muted></video>
+                        <div class="info">
+                            <div class="name">${filename}</div>
+                            <button class="btn-download" onclick="downloadFile('${videoUrl}', '${filename}')">Download Video</button>
+                        </div>
+                    `;
+                    videoResultsGrid.appendChild(div);
+
+                    showStatus('Video generated successfully!', 'success');
+                } else if (result.error) {
+                    showStatus(`Error: ${result.error}`, 'error');
+                    videoProgressText.textContent = 'Failed';
+                } else {
+                    showStatus('No video returned', 'error');
+                    videoProgressText.textContent = 'Failed';
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                console.error('Video generation failed:', err);
+                showStatus(`Error: ${err.message}`, 'error');
+                videoProgressText.textContent = 'Failed';
+            }
+
+            setTimeout(() => {
+                videoProgressCard.classList.add('hidden');
+                videoGenerateBtn.classList.remove('hidden');
+                isVideoProcessing = false;
+            }, 1000);
+        }
+
+        videoGenerateBtn.addEventListener('click', generateVideo);
 
         // Check API health
         fetch('/api/health')
             .then(r => r.json())
             .then(data => {
                 if (!data.fal_configured) {
-                    showStatus('Warning: FAL_API_KEY not configured. Set it in Vercel environment variables.', 'error');
+                    showStatus('Warning: FAL_API_KEY not configured.', 'error');
                 }
             })
             .catch(() => showStatus('Cannot connect to API', 'error'));
