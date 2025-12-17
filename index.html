@@ -470,6 +470,7 @@
         <div class="tabs">
             <div class="tab active" data-tab="image">Image Edit</div>
             <div class="tab" data-tab="video">Image to Video</div>
+            <div class="tab" data-tab="crop">Auto Crop</div>
         </div>
 
         <!-- IMAGE EDIT TAB -->
@@ -616,7 +617,91 @@
                 <div class="results-grid" id="video-results-grid"></div>
             </div>
         </div>
+
+        <!-- AUTO CROP TAB -->
+        <div id="crop-tab" class="tab-content">
+            <div class="grid">
+                <!-- Crop Images Upload -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h2>
+                        Images to Crop
+                        <span class="badge" style="background: #f97316;" id="crop-count">0</span>
+                    </h2>
+                    <p>Upload images to auto-crop with face detection</p>
+                    <div class="upload-zone" id="crop-zone">
+                        <input type="file" id="crop-input" accept="image/*" multiple>
+                        <div class="upload-icon">✂️</div>
+                        <div>Click or drag images here (bulk upload supported)</div>
+                    </div>
+                    <div class="preview-grid" id="crop-preview"></div>
+                </div>
+
+                <!-- Crop Settings -->
+                <div class="card prompt-card">
+                    <h2>Crop Settings</h2>
+                    <p>Choose aspect ratio for cropping</p>
+                    <div class="settings">
+                        <div class="setting">
+                            <label>Aspect Ratio</label>
+                            <select id="crop-aspect">
+                                <option value="9:16">9:16 (Stories/Reels)</option>
+                                <option value="4:5">4:5 (Instagram Post)</option>
+                                <option value="1:1">1:1 (Square)</option>
+                                <option value="16:9">16:9 (Landscape)</option>
+                                <option value="3:4">3:4 (Portrait)</option>
+                                <option value="2:3">2:3 (Portrait Tall)</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label>Crop Mode</label>
+                            <select id="crop-mode">
+                                <option value="face">Face Detection (center on face)</option>
+                                <option value="center">Center Crop</option>
+                                <option value="top">Top Crop</option>
+                                <option value="bottom">Bottom Crop</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label>Output Quality</label>
+                            <select id="crop-quality">
+                                <option value="1.0">Maximum (100%)</option>
+                                <option value="0.92" selected>High (92%)</option>
+                                <option value="0.8">Medium (80%)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Crop Button -->
+            <button class="btn" id="crop-btn" disabled style="background: #f97316;">
+                <span id="crop-btn-text">Upload images to crop</span>
+            </button>
+
+            <!-- Crop Progress -->
+            <div class="card progress-card hidden" id="crop-progress-card">
+                <h2>Cropping Images...</h2>
+                <div class="progress-bar">
+                    <div class="fill" id="crop-progress-fill" style="width: 0%; background: linear-gradient(90deg, #f97316, #ea580c);"></div>
+                </div>
+                <p class="progress-text" id="crop-progress-text">Starting...</p>
+            </div>
+
+            <!-- Crop Results -->
+            <div class="card hidden" id="crop-results-card">
+                <h2>Cropped Images</h2>
+                <button class="btn" id="download-all-btn" style="background: #f97316; margin-bottom: 15px;">
+                    Download All as ZIP
+                </button>
+                <div class="results-grid" id="crop-results-grid"></div>
+            </div>
+        </div>
     </div>
+
+    <!-- Face Detection Library -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    <!-- JSZip for bulk download -->
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
     <script>
         // ============ TABS ============
@@ -1109,6 +1194,310 @@
         }
 
         videoGenerateBtn.addEventListener('click', generateVideo);
+
+        // ============ AUTO CROPPER ============
+        let cropImages = [];
+        let cropImageData = [];
+        let croppedResults = [];
+        let isCropping = false;
+        let faceApiLoaded = false;
+
+        const cropZone = document.getElementById('crop-zone');
+        const cropInput = document.getElementById('crop-input');
+        const cropPreview = document.getElementById('crop-preview');
+        const cropCount = document.getElementById('crop-count');
+        const cropAspect = document.getElementById('crop-aspect');
+        const cropMode = document.getElementById('crop-mode');
+        const cropQuality = document.getElementById('crop-quality');
+        const cropBtn = document.getElementById('crop-btn');
+        const cropBtnText = document.getElementById('crop-btn-text');
+        const cropProgressCard = document.getElementById('crop-progress-card');
+        const cropProgressFill = document.getElementById('crop-progress-fill');
+        const cropProgressText = document.getElementById('crop-progress-text');
+        const cropResultsCard = document.getElementById('crop-results-card');
+        const cropResultsGrid = document.getElementById('crop-results-grid');
+        const downloadAllBtn = document.getElementById('download-all-btn');
+
+        // Load face-api models
+        async function loadFaceApi() {
+            if (faceApiLoaded) return true;
+            try {
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                faceApiLoaded = true;
+                console.log('Face API loaded');
+                return true;
+            } catch (err) {
+                console.error('Failed to load face-api:', err);
+                return false;
+            }
+        }
+
+        // Setup crop upload zone
+        cropZone.addEventListener('click', () => cropInput.click());
+        cropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            cropZone.classList.add('dragover');
+        });
+        cropZone.addEventListener('dragleave', () => cropZone.classList.remove('dragover'));
+        cropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            cropZone.classList.remove('dragover');
+            handleCropFiles(e.dataTransfer.files);
+        });
+        cropInput.addEventListener('change', (e) => handleCropFiles(e.target.files));
+
+        async function handleCropFiles(fileList) {
+            for (const file of fileList) {
+                if (file.type.startsWith('image/')) {
+                    cropImages.push(file);
+                    const base64 = await fileToBase64(file);
+                    cropImageData.push({ name: file.name, data: base64, file: file });
+                }
+            }
+            updateCropPreviews();
+            updateCropButton();
+        }
+
+        function updateCropPreviews() {
+            cropPreview.innerHTML = '';
+            cropImages.forEach((file, idx) => {
+                const div = document.createElement('div');
+                div.className = 'preview-item';
+                div.style.borderColor = '#f97316';
+
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                div.appendChild(img);
+
+                const label = document.createElement('span');
+                label.className = 'label';
+                label.textContent = `${idx + 1}`;
+                div.appendChild(label);
+
+                const remove = document.createElement('button');
+                remove.className = 'remove';
+                remove.textContent = '×';
+                remove.onclick = (e) => {
+                    e.stopPropagation();
+                    cropImages.splice(idx, 1);
+                    cropImageData.splice(idx, 1);
+                    updateCropPreviews();
+                    updateCropButton();
+                };
+                div.appendChild(remove);
+
+                cropPreview.appendChild(div);
+            });
+            cropCount.textContent = cropImages.length;
+        }
+
+        function updateCropButton() {
+            if (cropImages.length === 0) {
+                cropBtn.disabled = true;
+                cropBtnText.textContent = 'Upload images to crop';
+            } else {
+                cropBtn.disabled = false;
+                cropBtnText.textContent = `Crop ${cropImages.length} image${cropImages.length > 1 ? 's' : ''}`;
+            }
+        }
+
+        function parseAspectRatio(ratioStr) {
+            const [w, h] = ratioStr.split(':').map(Number);
+            return w / h;
+        }
+
+        async function detectFace(img) {
+            if (!faceApiLoaded) {
+                const loaded = await loadFaceApi();
+                if (!loaded) return null;
+            }
+
+            try {
+                const detection = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions());
+                if (detection) {
+                    return {
+                        x: detection.box.x + detection.box.width / 2,
+                        y: detection.box.y + detection.box.height / 2,
+                        width: detection.box.width,
+                        height: detection.box.height
+                    };
+                }
+            } catch (err) {
+                console.error('Face detection error:', err);
+            }
+            return null;
+        }
+
+        async function cropImage(imageData, aspectRatio, mode, quality) {
+            return new Promise(async (resolve) => {
+                const img = new Image();
+                img.onload = async () => {
+                    const imgWidth = img.width;
+                    const imgHeight = img.height;
+
+                    let cropWidth, cropHeight, cropX, cropY;
+
+                    // Calculate crop dimensions
+                    if (aspectRatio > imgWidth / imgHeight) {
+                        // Width is limiting factor
+                        cropWidth = imgWidth;
+                        cropHeight = imgWidth / aspectRatio;
+                    } else {
+                        // Height is limiting factor
+                        cropHeight = imgHeight;
+                        cropWidth = imgHeight * aspectRatio;
+                    }
+
+                    // Determine crop position based on mode
+                    if (mode === 'face') {
+                        const face = await detectFace(img);
+                        if (face) {
+                            // Center on face
+                            cropX = face.x - cropWidth / 2;
+                            cropY = face.y - cropHeight / 2;
+                        } else {
+                            // Fallback to center if no face
+                            cropX = (imgWidth - cropWidth) / 2;
+                            cropY = (imgHeight - cropHeight) / 2;
+                        }
+                    } else if (mode === 'center') {
+                        cropX = (imgWidth - cropWidth) / 2;
+                        cropY = (imgHeight - cropHeight) / 2;
+                    } else if (mode === 'top') {
+                        cropX = (imgWidth - cropWidth) / 2;
+                        cropY = 0;
+                    } else if (mode === 'bottom') {
+                        cropX = (imgWidth - cropWidth) / 2;
+                        cropY = imgHeight - cropHeight;
+                    }
+
+                    // Clamp to image bounds
+                    cropX = Math.max(0, Math.min(cropX, imgWidth - cropWidth));
+                    cropY = Math.max(0, Math.min(cropY, imgHeight - cropHeight));
+
+                    // Create canvas and crop
+                    const canvas = document.createElement('canvas');
+                    canvas.width = cropWidth;
+                    canvas.height = cropHeight;
+                    const ctx = canvas.getContext('2d');
+
+                    ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+                    // Convert to blob
+                    canvas.toBlob((blob) => {
+                        resolve({
+                            blob: blob,
+                            url: URL.createObjectURL(blob),
+                            width: cropWidth,
+                            height: cropHeight
+                        });
+                    }, 'image/jpeg', parseFloat(quality));
+                };
+                img.src = imageData;
+            });
+        }
+
+        async function runCrop() {
+            if (isCropping || cropImages.length === 0) return;
+
+            isCropping = true;
+            croppedResults = [];
+            cropBtn.classList.add('hidden');
+            cropProgressCard.classList.remove('hidden');
+            cropResultsCard.classList.remove('hidden');
+            cropResultsGrid.innerHTML = '';
+
+            const aspectRatio = parseAspectRatio(cropAspect.value);
+            const mode = cropMode.value;
+            const quality = cropQuality.value;
+            const total = cropImages.length;
+
+            // Load face API if needed
+            if (mode === 'face') {
+                cropProgressText.textContent = 'Loading face detection...';
+                await loadFaceApi();
+            }
+
+            for (let i = 0; i < cropImageData.length; i++) {
+                cropProgressText.textContent = `Cropping image ${i + 1}/${total}...`;
+                cropProgressFill.style.width = `${((i) / total) * 100}%`;
+
+                try {
+                    const result = await cropImage(cropImageData[i].data, aspectRatio, mode, quality);
+                    const originalName = cropImageData[i].name;
+                    const newName = originalName.replace(/\.[^/.]+$/, '') + '_cropped.jpg';
+
+                    croppedResults.push({
+                        name: newName,
+                        blob: result.blob,
+                        url: result.url
+                    });
+
+                    // Add to results grid
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerHTML = `
+                        <img src="${result.url}" alt="Cropped">
+                        <div class="info">
+                            <div class="name">${newName}</div>
+                            <button class="btn-download" onclick="downloadCroppedImage(${croppedResults.length - 1})">Download</button>
+                        </div>
+                    `;
+                    cropResultsGrid.appendChild(div);
+
+                } catch (err) {
+                    console.error(`Failed to crop ${cropImageData[i].name}:`, err);
+                }
+            }
+
+            cropProgressFill.style.width = '100%';
+            cropProgressText.textContent = `Done! ${croppedResults.length}/${total} images cropped.`;
+
+            setTimeout(() => {
+                cropProgressCard.classList.add('hidden');
+                cropBtn.classList.remove('hidden');
+                isCropping = false;
+                showStatus(`Cropped ${croppedResults.length} images!`, 'success');
+            }, 1000);
+        }
+
+        function downloadCroppedImage(index) {
+            const result = croppedResults[index];
+            const a = document.createElement('a');
+            a.href = result.url;
+            a.download = result.name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        async function downloadAllAsZip() {
+            if (croppedResults.length === 0) return;
+
+            showStatus('Creating ZIP file...', 'success');
+
+            const zip = new JSZip();
+
+            for (const result of croppedResults) {
+                zip.file(result.name, result.blob);
+            }
+
+            const content = await zip.generateAsync({ type: 'blob' });
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `cropped_images_${Date.now()}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showStatus('ZIP downloaded!', 'success');
+        }
+
+        cropBtn.addEventListener('click', runCrop);
+        downloadAllBtn.addEventListener('click', downloadAllAsZip);
 
         // Check API health
         fetch('/api/health')
