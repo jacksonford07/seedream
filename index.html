@@ -875,37 +875,32 @@
             });
         }
 
-        // Upload a single image to Fal storage using fal client (bypasses Vercel's 4.5MB limit)
-        async function uploadToFal(base64Data) {
-            // Convert base64 to blob
-            const base64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
-            const mimeType = base64Data.includes('data:') ? base64Data.split(';')[0].split(':')[1] : 'image/png';
-            const byteCharacters = atob(base64);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-                byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: mimeType });
-            const file = new File([blob], 'image.png', { type: mimeType });
+        // Resize image to fit under Vercel's limit while keeping high quality
+        // Max 1536px (SeedDream upscales anyway), 95% JPEG quality
+        function resizeImage(file, maxWidth = 1536, quality = 0.95) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    let width = img.width;
+                    let height = img.height;
 
-            // Use fal client to upload
-            if (window.fal && window.fal.storage) {
-                const url = await window.fal.storage.upload(file);
-                return url;
-            }
+                    // Only resize if larger than maxWidth
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
 
-            // Fallback to our upload endpoint for smaller files
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image: base64Data })
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // High quality JPEG
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = URL.createObjectURL(file);
             });
-            const result = await response.json();
-            if (result.success) {
-                return result.url;
-            }
-            throw new Error(result.error || 'Upload failed');
         }
 
         function setupUploadZone(zone, input, type) {
@@ -930,9 +925,9 @@
             for (const file of fileList) {
                 if (file.type.startsWith('image/')) {
                     filesArr.push(file);
-                    // Store full quality base64 - will upload to Fal during processing
-                    const base64 = await fileToBase64(file);
-                    dataArr.push({ name: file.name, data: base64 });
+                    // Resize to 1536px max, 95% quality - keeps detail, reduces size
+                    const resized = await resizeImage(file, 1536, 0.95);
+                    dataArr.push({ name: file.name, data: resized });
                 }
             }
             updatePreviews();
@@ -1044,30 +1039,6 @@
             const prompt = promptInput.value.trim();
             const seed = seedInput.value.trim();
 
-            // Upload all images to Fal first (full quality, no size limit)
-            progressText.textContent = 'Uploading images to cloud...';
-            const poseUrls = [];
-            const outfitUrls = [];
-
-            try {
-                for (let i = 0; i < poseData.length; i++) {
-                    progressText.textContent = `Uploading pose ${i + 1}/${poseData.length}...`;
-                    const url = await uploadToFal(poseData[i].data);
-                    poseUrls.push(url);
-                }
-                for (let i = 0; i < outfitData.length; i++) {
-                    progressText.textContent = `Uploading outfit ${i + 1}/${outfitData.length}...`;
-                    const url = await uploadToFal(outfitData[i].data);
-                    outfitUrls.push(url);
-                }
-            } catch (err) {
-                showStatus(`Upload failed: ${err.message}`, 'error');
-                progressCard.classList.add('hidden');
-                generateBtn.classList.remove('hidden');
-                isProcessing = false;
-                return;
-            }
-
             if (outfits.length === 0) {
                 const total = poses.length;
                 let completed = 0;
@@ -1089,7 +1060,7 @@
                     try {
                         const requestBody = {
                             prompt: prompt,
-                            image_urls: [poseUrls[p]],
+                            images: [poseData[p].data],
                             num_images: 1
                         };
                         if (seed) requestBody.seed = parseInt(seed);
@@ -1156,7 +1127,7 @@
                     try {
                         const requestBody = {
                             prompt: batchPrompt,
-                            image_urls: [poseUrls[p], outfitUrls[o]],
+                            images: [poseData[p].data, outfitData[o].data],
                             num_images: 1
                         };
                         if (seed) requestBody.seed = parseInt(seed);
@@ -1265,9 +1236,9 @@
                     break;
                 }
                 editImages.push(file);
-                // Store full quality - will upload to Fal during processing
-                const base64 = await fileToBase64(file);
-                editImagesData.push({ name: file.name, data: base64 });
+                // Resize to 1536px max, 95% quality - keeps detail, reduces size
+                const resized = await resizeImage(file, 1536, 0.95);
+                editImagesData.push({ name: file.name, data: resized });
             }
             updateEditPreviews();
             updateEditButton();
@@ -1336,24 +1307,6 @@
             editResultsCard.classList.remove('hidden');
             editResultsGrid.innerHTML = '';
 
-            // Upload images to Fal first (full quality)
-            editProgressText.textContent = 'Uploading images to cloud...';
-            const imageUrls = [];
-
-            try {
-                for (let i = 0; i < editImagesData.length; i++) {
-                    editProgressText.textContent = `Uploading image ${i + 1}/${editImagesData.length}...`;
-                    const url = await uploadToFal(editImagesData[i].data);
-                    imageUrls.push(url);
-                }
-            } catch (err) {
-                showStatus(`Upload failed: ${err.message}`, 'error');
-                editProgressCard.classList.add('hidden');
-                editGenerateBtn.classList.remove('hidden');
-                isEditProcessing = false;
-                return;
-            }
-
             // Animate progress bar for processing
             let progress = 0;
             const progressInterval = setInterval(() => {
@@ -1367,7 +1320,7 @@
             try {
                 const requestBody = {
                     prompt: prompt,
-                    image_urls: imageUrls,
+                    images: editImagesData.map(img => img.data),
                     num_images: 1
                 };
 
