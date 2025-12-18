@@ -56,10 +56,22 @@ class handler(BaseHTTPRequestHandler):
             if not prompt:
                 return self.send_json({"error": "No prompt provided"}, 400)
 
+            # Map size options - default to 4K
+            size_map = {
+                "square_hd": "square_hd",
+                "square": "square",
+                "portrait_4_3": "portrait_4_3",
+                "portrait_16_9": "portrait_16_9",
+                "landscape_4_3": "landscape_4_3",
+                "landscape_16_9": "landscape_16_9",
+                "auto_4K": "auto_4K",
+                "auto_2K": "auto_2K",
+            }
+
             # Build API arguments
             arguments = {
                 "prompt": prompt,
-                "image_size": image_size,
+                "image_size": size_map.get(image_size, "auto_4K"),
                 "num_images": num_images,
                 "enable_safety_checker": False,
             }
