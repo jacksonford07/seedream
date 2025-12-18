@@ -814,8 +814,16 @@
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <!-- JSZip for bulk download -->
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <!-- Fal.ai client for browser uploads -->
+    <script src="https://cdn.jsdelivr.net/npm/@fal-ai/client@1.2.1/dist/index.umd.js"></script>
 
     <script>
+        // Configure fal client to use our proxy
+        if (window.fal) {
+            window.fal.config({
+                proxyUrl: '/api/fal-proxy'
+            });
+        }
         // ============ TABS ============
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -867,8 +875,27 @@
             });
         }
 
-        // Upload a single image to Fal storage (bypasses Vercel's 4.5MB limit)
+        // Upload a single image to Fal storage using fal client (bypasses Vercel's 4.5MB limit)
         async function uploadToFal(base64Data) {
+            // Convert base64 to blob
+            const base64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+            const mimeType = base64Data.includes('data:') ? base64Data.split(';')[0].split(':')[1] : 'image/png';
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: mimeType });
+            const file = new File([blob], 'image.png', { type: mimeType });
+
+            // Use fal client to upload
+            if (window.fal && window.fal.storage) {
+                const url = await window.fal.storage.upload(file);
+                return url;
+            }
+
+            // Fallback to our upload endpoint for smaller files
             const response = await fetch('/api/upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
