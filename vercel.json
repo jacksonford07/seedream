@@ -1,1 +1,16 @@
-{}
+{
+  "functions": {
+    "api/*.py": {
+      "maxDuration": 300,
+      "memory": 1024
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "headers": {
+        "Access-Control-Allow-Origin": "*"
+      }
+    }
+  ]
+}

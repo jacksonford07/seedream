@@ -468,13 +468,15 @@
 
         <!-- Tabs -->
         <div class="tabs">
-            <div class="tab active" data-tab="image">Image Edit</div>
+            <div class="tab active" data-tab="outfit">Outfit Change</div>
+            <div class="tab" data-tab="edit">SeedDream Edit</div>
+            <div class="tab" data-tab="generate">Text to Image</div>
             <div class="tab" data-tab="video">Image to Video</div>
             <div class="tab" data-tab="crop">Auto Crop</div>
         </div>
 
-        <!-- IMAGE EDIT TAB -->
-        <div id="image-tab" class="tab-content active">
+        <!-- OUTFIT CHANGE TAB -->
+        <div id="outfit-tab" class="tab-content active">
             <div class="grid">
                 <!-- Pose Images -->
                 <div class="card">
@@ -539,6 +541,116 @@
             <div class="card hidden" id="results-card">
                 <h2>Results</h2>
                 <div class="results-grid" id="results-grid"></div>
+            </div>
+        </div>
+
+        <!-- SEEDREAM EDIT TAB -->
+        <div id="edit-tab" class="tab-content">
+            <div class="grid">
+                <!-- Multiple Image Upload -->
+                <div class="card" style="grid-column: 1 / -1;">
+                    <h2>
+                        Reference Images
+                        <span class="badge" id="edit-image-count">0</span>
+                    </h2>
+                    <p>Upload up to 10 reference images for editing (Figure 1, Figure 2, etc.)</p>
+                    <div class="upload-zone" id="edit-zone">
+                        <input type="file" id="edit-input" accept="image/*" multiple>
+                        <div class="upload-icon">🖼️</div>
+                        <div>Click or drag images here (up to 10)</div>
+                    </div>
+                    <div class="preview-grid" id="edit-preview"></div>
+                </div>
+
+                <!-- Edit Prompt -->
+                <div class="card prompt-card">
+                    <h2>Edit Prompt</h2>
+                    <p>Describe what you want to change in the image</p>
+                    <textarea id="edit-prompt" placeholder="e.g., Change the background to a beach sunset, make her hair blonde, add sunglasses..."></textarea>
+                    <div class="settings">
+                        <div class="setting">
+                            <label>Seed (optional)</label>
+                            <input type="number" id="edit-seed" placeholder="Random">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Button -->
+            <button class="btn btn-primary" id="edit-generate-btn" disabled>
+                <span id="edit-btn-text">Upload an image to start</span>
+            </button>
+
+            <!-- Edit Progress -->
+            <div class="card progress-card hidden" id="edit-progress-card">
+                <h2>Processing...</h2>
+                <div class="progress-bar">
+                    <div class="fill" id="edit-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="progress-text" id="edit-progress-text">Starting...</p>
+            </div>
+
+            <!-- Edit Results -->
+            <div class="card hidden" id="edit-results-card">
+                <h2>Result</h2>
+                <div class="results-grid" id="edit-results-grid"></div>
+            </div>
+        </div>
+
+        <!-- TEXT TO IMAGE TAB -->
+        <div id="generate-tab" class="tab-content">
+            <div class="grid">
+                <!-- Generation Prompt -->
+                <div class="card prompt-card">
+                    <h2>Image Prompt</h2>
+                    <p>Describe the image you want to generate</p>
+                    <textarea id="generate-prompt" placeholder="e.g., A beautiful woman in a red dress standing on a beach at sunset, photorealistic, 8k quality..."></textarea>
+                    <div class="settings">
+                        <div class="setting">
+                            <label>Image Size</label>
+                            <select id="generate-size">
+                                <option value="square_hd">Square HD (1024x1024)</option>
+                                <option value="square">Square (512x512)</option>
+                                <option value="portrait_4_3">Portrait 4:3</option>
+                                <option value="portrait_16_9">Portrait 16:9</option>
+                                <option value="landscape_4_3">Landscape 4:3</option>
+                                <option value="landscape_16_9">Landscape 16:9</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label>Number of Images</label>
+                            <select id="generate-num">
+                                <option value="1" selected>1</option>
+                                <option value="2">2</option>
+                                <option value="4">4</option>
+                            </select>
+                        </div>
+                        <div class="setting">
+                            <label>Seed (optional)</label>
+                            <input type="number" id="generate-seed" placeholder="Random">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Button -->
+            <button class="btn btn-primary" id="generate-btn-t2i" disabled>
+                <span id="generate-btn-text">Enter a prompt to start</span>
+            </button>
+
+            <!-- Generate Progress -->
+            <div class="card progress-card hidden" id="generate-progress-card">
+                <h2>Generating...</h2>
+                <div class="progress-bar">
+                    <div class="fill" id="generate-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="progress-text" id="generate-progress-text">Starting...</p>
+            </div>
+
+            <!-- Generate Results -->
+            <div class="card hidden" id="generate-results-card">
+                <h2>Generated Images</h2>
+                <div class="results-grid" id="generate-results-grid"></div>
             </div>
         </div>
 
@@ -755,6 +867,32 @@
             });
         }
 
+        // Compress image to reduce payload size for Vercel's 4.5MB limit
+        function compressImage(file, maxWidth = 2048, quality = 0.85) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => {
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Scale down if larger than maxWidth
+                    if (width > maxWidth) {
+                        height = (height * maxWidth) / width;
+                        width = maxWidth;
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
         function setupUploadZone(zone, input, type) {
             zone.addEventListener('click', () => input.click());
             zone.addEventListener('dragover', (e) => {
@@ -777,8 +915,9 @@
             for (const file of fileList) {
                 if (file.type.startsWith('image/')) {
                     filesArr.push(file);
-                    const base64 = await fileToBase64(file);
-                    dataArr.push({ name: file.name, data: base64 });
+                    // Compress images to stay under Vercel's 4.5MB limit
+                    const compressed = await compressImage(file, 2048, 0.85);
+                    dataArr.push({ name: file.name, data: compressed });
                 }
             }
             updatePreviews();
@@ -1046,6 +1185,303 @@
         generateBtn.addEventListener('click', runBatch);
         setupUploadZone(poseZone, poseInput, 'pose');
         setupUploadZone(outfitZone, outfitInput, 'outfit');
+
+        // ============ SEEDREAM EDIT (Multiple Reference Images) ============
+        let editImages = [];
+        let editImagesData = [];
+        let isEditProcessing = false;
+
+        const editZone = document.getElementById('edit-zone');
+        const editInput = document.getElementById('edit-input');
+        const editPreview = document.getElementById('edit-preview');
+        const editImageCount = document.getElementById('edit-image-count');
+        const editPromptInput = document.getElementById('edit-prompt');
+        const editSeed = document.getElementById('edit-seed');
+        const editGenerateBtn = document.getElementById('edit-generate-btn');
+        const editBtnText = document.getElementById('edit-btn-text');
+        const editProgressCard = document.getElementById('edit-progress-card');
+        const editProgressFill = document.getElementById('edit-progress-fill');
+        const editProgressText = document.getElementById('edit-progress-text');
+        const editResultsCard = document.getElementById('edit-results-card');
+        const editResultsGrid = document.getElementById('edit-results-grid');
+
+        editZone.addEventListener('click', () => editInput.click());
+        editZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            editZone.classList.add('dragover');
+        });
+        editZone.addEventListener('dragleave', () => editZone.classList.remove('dragover'));
+        editZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            editZone.classList.remove('dragover');
+            handleEditFiles(e.dataTransfer.files);
+        });
+        editInput.addEventListener('change', (e) => handleEditFiles(e.target.files));
+
+        async function handleEditFiles(fileList) {
+            for (const file of fileList) {
+                if (!file.type.startsWith('image/')) continue;
+                if (editImages.length >= 10) {
+                    showStatus('Maximum 10 images allowed', 'error');
+                    break;
+                }
+                editImages.push(file);
+                // Compress images to stay under Vercel's 4.5MB limit
+                const compressed = await compressImage(file, 2048, 0.85);
+                editImagesData.push({ name: file.name, data: compressed });
+            }
+            updateEditPreviews();
+            updateEditButton();
+        }
+
+        function updateEditPreviews() {
+            editPreview.innerHTML = '';
+            editImages.forEach((file, idx) => {
+                const div = document.createElement('div');
+                div.className = 'preview-item';
+                div.style.borderColor = '#a855f7';
+
+                const img = document.createElement('img');
+                img.src = URL.createObjectURL(file);
+                div.appendChild(img);
+
+                const label = document.createElement('span');
+                label.className = 'label';
+                label.textContent = `F${idx + 1}`;
+                div.appendChild(label);
+
+                const remove = document.createElement('button');
+                remove.className = 'remove';
+                remove.textContent = '×';
+                remove.onclick = (e) => {
+                    e.stopPropagation();
+                    editImages.splice(idx, 1);
+                    editImagesData.splice(idx, 1);
+                    updateEditPreviews();
+                    updateEditButton();
+                };
+                div.appendChild(remove);
+
+                editPreview.appendChild(div);
+            });
+            editImageCount.textContent = editImages.length;
+        }
+
+        function updateEditButton() {
+            if (editImages.length === 0) {
+                editGenerateBtn.disabled = true;
+                editBtnText.textContent = 'Upload images to start';
+            } else if (!editPromptInput.value.trim()) {
+                editGenerateBtn.disabled = true;
+                editBtnText.textContent = 'Enter a prompt to start';
+            } else {
+                editGenerateBtn.disabled = false;
+                editBtnText.textContent = `Edit with ${editImages.length} Image${editImages.length > 1 ? 's' : ''}`;
+            }
+        }
+
+        editPromptInput.addEventListener('input', updateEditButton);
+
+        async function runEdit() {
+            if (isEditProcessing || editImages.length === 0) return;
+
+            const prompt = editPromptInput.value.trim();
+            if (!prompt) {
+                showStatus('Please enter an edit prompt', 'error');
+                return;
+            }
+
+            isEditProcessing = true;
+            editGenerateBtn.classList.add('hidden');
+            editProgressCard.classList.remove('hidden');
+            editResultsCard.classList.remove('hidden');
+            editResultsGrid.innerHTML = '';
+
+            // Animate progress bar
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 2;
+                if (progress <= 90) {
+                    editProgressFill.style.width = `${progress}%`;
+                    editProgressText.textContent = `Processing ${editImages.length} image${editImages.length > 1 ? 's' : ''}... ${progress}%`;
+                }
+            }, 500);
+
+            try {
+                const requestBody = {
+                    prompt: prompt,
+                    images: editImagesData.map(img => img.data),
+                    num_images: 1
+                };
+
+                const seed = editSeed.value.trim();
+                if (seed) requestBody.seed = parseInt(seed);
+
+                const response = await fetch('/api/edit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const result = await response.json();
+                clearInterval(progressInterval);
+
+                if (result.success && result.images && result.images.length > 0) {
+                    const imageUrl = result.images[0].url;
+                    const timestamp = Date.now();
+                    const filename = `seedream_edit_${timestamp}.png`;
+
+                    editProgressFill.style.width = '100%';
+                    editProgressText.textContent = 'Done!';
+
+                    const div = document.createElement('div');
+                    div.className = 'result-item';
+                    div.innerHTML = `
+                        <img src="${imageUrl}" alt="Result">
+                        <div class="info">
+                            <div class="name">${filename}</div>
+                            <button class="btn-download" onclick="downloadFile('${imageUrl}', '${filename}')">Download</button>
+                        </div>
+                    `;
+                    editResultsGrid.appendChild(div);
+                    await downloadFile(imageUrl, filename);
+
+                    showStatus('Image edited successfully!', 'success');
+                } else if (result.error) {
+                    showStatus(`Error: ${result.error}`, 'error');
+                    editProgressText.textContent = 'Failed';
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                console.error('Edit failed:', err);
+                showStatus(`Error: ${err.message}`, 'error');
+                editProgressText.textContent = 'Failed';
+            }
+
+            setTimeout(() => {
+                editProgressCard.classList.add('hidden');
+                editGenerateBtn.classList.remove('hidden');
+                isEditProcessing = false;
+            }, 1000);
+        }
+
+        editGenerateBtn.addEventListener('click', runEdit);
+
+        // ============ TEXT TO IMAGE GENERATION ============
+        let isGenerating = false;
+
+        const generatePromptInput = document.getElementById('generate-prompt');
+        const generateSize = document.getElementById('generate-size');
+        const generateNum = document.getElementById('generate-num');
+        const generateSeedInput = document.getElementById('generate-seed');
+        const generateBtnT2I = document.getElementById('generate-btn-t2i');
+        const generateBtnText = document.getElementById('generate-btn-text');
+        const generateProgressCard = document.getElementById('generate-progress-card');
+        const generateProgressFill = document.getElementById('generate-progress-fill');
+        const generateProgressText = document.getElementById('generate-progress-text');
+        const generateResultsCard = document.getElementById('generate-results-card');
+        const generateResultsGrid = document.getElementById('generate-results-grid');
+
+        function updateGenerateButton() {
+            if (!generatePromptInput.value.trim()) {
+                generateBtnT2I.disabled = true;
+                generateBtnText.textContent = 'Enter a prompt to start';
+            } else {
+                generateBtnT2I.disabled = false;
+                const num = generateNum.value;
+                generateBtnText.textContent = `Generate ${num} Image${num > 1 ? 's' : ''}`;
+            }
+        }
+
+        generatePromptInput.addEventListener('input', updateGenerateButton);
+        generateNum.addEventListener('change', updateGenerateButton);
+
+        async function runGenerate() {
+            if (isGenerating) return;
+
+            const prompt = generatePromptInput.value.trim();
+            if (!prompt) {
+                showStatus('Please enter a prompt', 'error');
+                return;
+            }
+
+            isGenerating = true;
+            generateBtnT2I.classList.add('hidden');
+            generateProgressCard.classList.remove('hidden');
+            generateResultsCard.classList.remove('hidden');
+            generateResultsGrid.innerHTML = '';
+
+            // Animate progress bar
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 2;
+                if (progress <= 90) {
+                    generateProgressFill.style.width = `${progress}%`;
+                    generateProgressText.textContent = `Generating... ${progress}%`;
+                }
+            }, 600);
+
+            try {
+                const requestBody = {
+                    prompt: prompt,
+                    image_size: generateSize.value,
+                    num_images: parseInt(generateNum.value)
+                };
+
+                const seed = generateSeedInput.value.trim();
+                if (seed) requestBody.seed = parseInt(seed);
+
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                const result = await response.json();
+                clearInterval(progressInterval);
+
+                if (result.success && result.images && result.images.length > 0) {
+                    generateProgressFill.style.width = '100%';
+                    generateProgressText.textContent = 'Done!';
+
+                    const timestamp = Date.now();
+                    for (let i = 0; i < result.images.length; i++) {
+                        const imageUrl = result.images[i].url;
+                        const filename = `seedream_gen_${timestamp}_${i + 1}.png`;
+
+                        const div = document.createElement('div');
+                        div.className = 'result-item';
+                        div.innerHTML = `
+                            <img src="${imageUrl}" alt="Generated">
+                            <div class="info">
+                                <div class="name">${filename}</div>
+                                <button class="btn-download" onclick="downloadFile('${imageUrl}', '${filename}')">Download</button>
+                            </div>
+                        `;
+                        generateResultsGrid.appendChild(div);
+                        await downloadFile(imageUrl, filename);
+                    }
+
+                    showStatus(`Generated ${result.images.length} image(s) successfully!`, 'success');
+                } else if (result.error) {
+                    showStatus(`Error: ${result.error}`, 'error');
+                    generateProgressText.textContent = 'Failed';
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                console.error('Generation failed:', err);
+                showStatus(`Error: ${err.message}`, 'error');
+                generateProgressText.textContent = 'Failed';
+            }
+
+            setTimeout(() => {
+                generateProgressCard.classList.add('hidden');
+                generateBtnT2I.classList.remove('hidden');
+                isGenerating = false;
+            }, 1000);
+        }
+
+        generateBtnT2I.addEventListener('click', runGenerate);
 
         // ============ VIDEO GENERATION ============
         let videoImage = null;

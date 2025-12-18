@@ -126,12 +126,18 @@ class handler(BaseHTTPRequestHandler):
                 if seed:
                     arguments["seed"] = int(seed)
 
+                # Log the request for debugging
+                print(f"Calling fal-ai/bytedance/seedream/v4.5/edit with {len(image_urls)} images")
+                print(f"Arguments: {json.dumps({k: v if k != 'image_urls' else f'[{len(v)} urls]' for k, v in arguments.items()})}")
+
                 # Call Fal API
                 result = fal_client.subscribe(
                     "fal-ai/bytedance/seedream/v4.5/edit",
                     arguments=arguments,
                     with_logs=True
                 )
+
+                print(f"Result: {json.dumps(result, default=str)[:500]}")
 
                 return self.send_json({
                     "success": True,
@@ -143,4 +149,7 @@ class handler(BaseHTTPRequestHandler):
                 return self.send_json({"error": "Content-Type must be application/json"}, 400)
 
         except Exception as e:
-            return self.send_json({"error": str(e)}, 500)
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Error in edit endpoint: {error_details}")
+            return self.send_json({"error": str(e), "details": error_details}, 500)
