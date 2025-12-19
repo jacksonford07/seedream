@@ -734,17 +734,17 @@
         <!-- AUTO CROP TAB -->
         <div id="crop-tab" class="tab-content">
             <div class="grid">
-                <!-- Crop Images Upload -->
+                <!-- Crop Media Upload -->
                 <div class="card" style="grid-column: 1 / -1;">
                     <h2>
-                        Images to Crop
+                        Media to Crop
                         <span class="badge" style="background: #f97316;" id="crop-count">0</span>
                     </h2>
-                    <p>Upload images to auto-crop with face detection</p>
+                    <p>Upload images or videos to auto-crop with face detection</p>
                     <div class="upload-zone" id="crop-zone">
-                        <input type="file" id="crop-input" accept="image/*" multiple>
+                        <input type="file" id="crop-input" accept="image/*,video/*" multiple>
                         <div class="upload-icon">✂️</div>
-                        <div>Click or drag images here (bulk upload supported)</div>
+                        <div>Click or drag images/videos here (bulk upload supported)</div>
                     </div>
                     <div class="preview-grid" id="crop-preview"></div>
                 </div>
@@ -793,7 +793,7 @@
 
             <!-- Crop Progress -->
             <div class="card progress-card hidden" id="crop-progress-card">
-                <h2>Cropping Images...</h2>
+                <h2>Cropping Media...</h2>
                 <div class="progress-bar">
                     <div class="fill" id="crop-progress-fill" style="width: 0%; background: linear-gradient(90deg, #f97316, #ea580c);"></div>
                 </div>
@@ -802,7 +802,7 @@
 
             <!-- Crop Results -->
             <div class="card hidden" id="crop-results-card">
-                <h2>Cropped Images</h2>
+                <h2>Cropped Media</h2>
                 <button class="btn" id="download-all-btn" style="background: #f97316; margin-bottom: 15px;">
                     Download All as ZIP
                 </button>
@@ -1699,7 +1699,10 @@
                 if (file.type.startsWith('image/')) {
                     cropImages.push(file);
                     const base64 = await fileToBase64(file);
-                    cropImageData.push({ name: file.name, data: base64, file: file });
+                    cropImageData.push({ name: file.name, data: base64, file: file, type: 'image' });
+                } else if (file.type.startsWith('video/')) {
+                    cropImages.push(file);
+                    cropImageData.push({ name: file.name, file: file, type: 'video' });
                 }
             }
             updateCropPreviews();
@@ -1713,13 +1716,22 @@
                 div.className = 'preview-item';
                 div.style.borderColor = '#f97316';
 
-                const img = document.createElement('img');
-                img.src = URL.createObjectURL(file);
-                div.appendChild(img);
+                if (file.type.startsWith('video/')) {
+                    const video = document.createElement('video');
+                    video.src = URL.createObjectURL(file);
+                    video.muted = true;
+                    video.style.maxWidth = '100%';
+                    video.style.maxHeight = '100%';
+                    div.appendChild(video);
+                } else {
+                    const img = document.createElement('img');
+                    img.src = URL.createObjectURL(file);
+                    div.appendChild(img);
+                }
 
                 const label = document.createElement('span');
                 label.className = 'label';
-                label.textContent = `${idx + 1}`;
+                label.textContent = file.type.startsWith('video/') ? `V${idx + 1}` : `${idx + 1}`;
                 div.appendChild(label);
 
                 const remove = document.createElement('button');
@@ -1742,10 +1754,16 @@
         function updateCropButton() {
             if (cropImages.length === 0) {
                 cropBtn.disabled = true;
-                cropBtnText.textContent = 'Upload images to crop';
+                cropBtnText.textContent = 'Upload media to crop';
             } else {
+                const imageCount = cropImageData.filter(d => d.type === 'image').length;
+                const videoCount = cropImageData.filter(d => d.type === 'video').length;
+                let label = 'Crop ';
+                if (imageCount > 0) label += `${imageCount} image${imageCount > 1 ? 's' : ''}`;
+                if (imageCount > 0 && videoCount > 0) label += ' + ';
+                if (videoCount > 0) label += `${videoCount} video${videoCount > 1 ? 's' : ''}`;
                 cropBtn.disabled = false;
-                cropBtnText.textContent = `Crop ${cropImages.length} image${cropImages.length > 1 ? 's' : ''}`;
+                cropBtnText.textContent = label;
             }
         }
 
@@ -1845,6 +1863,150 @@
             });
         }
 
+        // Get video dimensions
+        function getVideoInfo(file) {
+            return new Promise((resolve) => {
+                const video = document.createElement('video');
+                video.onloadedmetadata = () => {
+                    resolve({
+                        width: video.videoWidth,
+                        height: video.videoHeight,
+                        duration: video.duration
+                    });
+                };
+                video.src = URL.createObjectURL(file);
+            });
+        }
+
+        // Extract first frame from video for face detection
+        function extractVideoFrame(file) {
+            return new Promise((resolve) => {
+                const video = document.createElement('video');
+                video.onloadeddata = () => {
+                    video.currentTime = 0.1; // Get frame at 0.1s
+                };
+                video.onseeked = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0);
+
+                    const img = new Image();
+                    img.onload = () => resolve(img);
+                    img.src = canvas.toDataURL();
+                };
+                video.src = URL.createObjectURL(file);
+            });
+        }
+
+        // Crop video using canvas - renders frame by frame
+        async function cropVideo(file, aspectRatio, mode, progressCallback) {
+            const info = await getVideoInfo(file);
+            const { width: vidWidth, height: vidHeight, duration } = info;
+
+            // Calculate crop dimensions
+            let cropWidth, cropHeight, cropX, cropY;
+            if (aspectRatio > vidWidth / vidHeight) {
+                cropWidth = vidWidth;
+                cropHeight = vidWidth / aspectRatio;
+            } else {
+                cropHeight = vidHeight;
+                cropWidth = vidHeight * aspectRatio;
+            }
+
+            // Determine crop position
+            if (mode === 'face') {
+                const frame = await extractVideoFrame(file);
+                const face = await detectFace(frame);
+                if (face) {
+                    cropX = face.x - cropWidth / 2;
+                    cropY = face.y - cropHeight / 2;
+                } else {
+                    cropX = (vidWidth - cropWidth) / 2;
+                    cropY = (vidHeight - cropHeight) / 2;
+                }
+            } else if (mode === 'center') {
+                cropX = (vidWidth - cropWidth) / 2;
+                cropY = (vidHeight - cropHeight) / 2;
+            } else if (mode === 'top') {
+                cropX = (vidWidth - cropWidth) / 2;
+                cropY = 0;
+            } else if (mode === 'bottom') {
+                cropX = (vidWidth - cropWidth) / 2;
+                cropY = vidHeight - cropHeight;
+            }
+
+            // Clamp to bounds
+            cropX = Math.max(0, Math.min(cropX, vidWidth - cropWidth));
+            cropY = Math.max(0, Math.min(cropY, vidHeight - cropHeight));
+
+            // Use MediaRecorder to capture cropped video
+            const video = document.createElement('video');
+            video.muted = true;
+            video.src = URL.createObjectURL(file);
+            await video.play();
+            video.pause();
+            video.currentTime = 0;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = cropWidth;
+            canvas.height = cropHeight;
+            const ctx = canvas.getContext('2d');
+
+            const stream = canvas.captureStream(30);
+            const mediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'video/webm;codecs=vp9',
+                videoBitsPerSecond: 8000000
+            });
+
+            const chunks = [];
+            mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+
+            return new Promise((resolve) => {
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    resolve({
+                        blob: blob,
+                        url: URL.createObjectURL(blob),
+                        width: cropWidth,
+                        height: cropHeight
+                    });
+                };
+
+                mediaRecorder.start();
+                video.play();
+
+                // Render loop
+                const fps = 30;
+                const frameInterval = 1000 / fps;
+                let lastFrameTime = 0;
+
+                function renderFrame(timestamp) {
+                    if (video.ended || video.paused) {
+                        mediaRecorder.stop();
+                        return;
+                    }
+
+                    if (timestamp - lastFrameTime >= frameInterval) {
+                        ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+                        lastFrameTime = timestamp;
+
+                        if (progressCallback) {
+                            progressCallback(video.currentTime / duration);
+                        }
+                    }
+                    requestAnimationFrame(renderFrame);
+                }
+
+                requestAnimationFrame(renderFrame);
+
+                video.onended = () => {
+                    setTimeout(() => mediaRecorder.stop(), 100);
+                };
+            });
+        }
+
         async function runCrop() {
             if (isCropping || cropImages.length === 0) return;
 
@@ -1867,30 +2029,53 @@
             }
 
             for (let i = 0; i < cropImageData.length; i++) {
-                cropProgressText.textContent = `Cropping image ${i + 1}/${total}...`;
+                const item = cropImageData[i];
+                const isVideo = item.type === 'video';
+
+                cropProgressText.textContent = `Cropping ${isVideo ? 'video' : 'image'} ${i + 1}/${total}...`;
                 cropProgressFill.style.width = `${((i) / total) * 100}%`;
 
                 try {
-                    const result = await cropImage(cropImageData[i].data, aspectRatio, mode, quality);
-                    const originalName = cropImageData[i].name;
-                    const newName = originalName.replace(/\.[^/.]+$/, '') + '_cropped.jpg';
+                    let result;
+                    if (isVideo) {
+                        result = await cropVideo(item.file, aspectRatio, mode, (progress) => {
+                            cropProgressText.textContent = `Cropping video ${i + 1}/${total}... ${Math.round(progress * 100)}%`;
+                        });
+                    } else {
+                        result = await cropImage(item.data, aspectRatio, mode, quality);
+                    }
+
+                    const originalName = item.name;
+                    const ext = isVideo ? '.webm' : '.jpg';
+                    const newName = originalName.replace(/\.[^/.]+$/, '') + '_cropped' + ext;
 
                     croppedResults.push({
                         name: newName,
                         blob: result.blob,
-                        url: result.url
+                        url: result.url,
+                        isVideo: isVideo
                     });
 
                     // Add to results grid
                     const div = document.createElement('div');
                     div.className = 'result-item';
-                    div.innerHTML = `
-                        <img src="${result.url}" alt="Cropped">
-                        <div class="info">
-                            <div class="name">${newName}</div>
-                            <button class="btn-download" onclick="downloadCroppedImage(${croppedResults.length - 1})">Download</button>
-                        </div>
-                    `;
+                    if (isVideo) {
+                        div.innerHTML = `
+                            <video src="${result.url}" controls muted style="max-width: 100%;"></video>
+                            <div class="info">
+                                <div class="name">${newName}</div>
+                                <button class="btn-download" onclick="downloadCroppedImage(${croppedResults.length - 1})">Download</button>
+                            </div>
+                        `;
+                    } else {
+                        div.innerHTML = `
+                            <img src="${result.url}" alt="Cropped">
+                            <div class="info">
+                                <div class="name">${newName}</div>
+                                <button class="btn-download" onclick="downloadCroppedImage(${croppedResults.length - 1})">Download</button>
+                            </div>
+                        `;
+                    }
                     cropResultsGrid.appendChild(div);
 
                 } catch (err) {
@@ -1899,7 +2084,7 @@
             }
 
             cropProgressFill.style.width = '100%';
-            cropProgressText.textContent = `Done! ${croppedResults.length}/${total} images cropped.`;
+            cropProgressText.textContent = `Done! ${croppedResults.length}/${total} items cropped.`;
 
             setTimeout(() => {
                 cropProgressCard.classList.add('hidden');
