@@ -2107,6 +2107,9 @@
         async function downloadAllAsZip() {
             if (croppedResults.length === 0) return;
 
+            const videoCount = croppedResults.filter(r => r.isVideo).length;
+            const imageCount = croppedResults.length - videoCount;
+
             showStatus('Creating ZIP file...', 'success');
 
             const zip = new JSZip();
@@ -2119,13 +2122,17 @@
             const url = URL.createObjectURL(content);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `cropped_images_${Date.now()}.zip`;
+            a.download = `cropped_media_${Date.now()}.zip`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            showStatus('ZIP downloaded!', 'success');
+            let msg = 'ZIP downloaded! ';
+            if (imageCount > 0) msg += `${imageCount} image${imageCount > 1 ? 's' : ''}`;
+            if (imageCount > 0 && videoCount > 0) msg += ' + ';
+            if (videoCount > 0) msg += `${videoCount} video${videoCount > 1 ? 's' : ''}`;
+            showStatus(msg, 'success');
         }
 
         cropBtn.addEventListener('click', runCrop);
